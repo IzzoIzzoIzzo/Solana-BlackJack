@@ -766,6 +766,8 @@
       <button class="action-btn stand" id="btnStand" onclick="stand()">Stand</button>
       <button class="action-btn double" id="btnDouble" onclick="dbl()">Double</button>
       <button class="action-btn split" id="btnSplit" onclick="spl()">Split</button>
+      <button class="action-btn" id="btnSurrender" onclick="surrenderBtn()" style="border-color:#888;color:#888">Surrender</button>
+      <button class="action-btn" id="btnWallet" onclick="connectPhantom()" style="border-color:#9945FF;color:#9945FF">🦊 Wallet</button>
     </div>
     <div class="bet-chips" id="betChips">
       <button class="bet-chip" onclick="setBet(10)">10</button>
@@ -960,6 +962,28 @@
   function dbl(){ if(!playing||chips<bet)return; chips-=bet; bet*=2; player.push(deck.pop()); document.getElementById('playerCards').innerHTML = player.map(c=>cardHtml(c,false)).join(''); document.getElementById('playerVal').innerText = hv(player); playSound(); finish(); }
   function spl(){ if(!playing)return; if(player.length!==2||player[0].r!==player[1].r||chips<bet)return; chips-=bet; let newCard=deck.pop(); player[1]=newCard; document.getElementById('playerCards').innerHTML = player.map(c=>cardHtml(c,false)).join(''); playSound(); }
   
+  function surrenderBtn(){ if(!playing)return; let refund=Math.floor(bet/2); chips+=refund; showRes('SURRENDER +'+refund,'push'); playing=false; document.getElementById('dealBtn').disabled=false; updateUI(); playLose(); }
+  
+  let phantomWallet = null;
+  async function connectPhantom(){
+    if(typeof window.solana === 'undefined' || !window.solana.isPhantom){
+      coach('Phantom not found','Install Phantom Wallet');
+      return;
+    }
+    try {
+      const resp = await window.solana.connect();
+      phantomWallet = resp.publicKey.toString();
+      document.getElementById('btnWallet').innerHTML = '🦊 '+phantomWallet.slice(0,4)+'..'+phantomWallet.slice(-4);
+      document.getElementById('btnWallet').style.borderColor = '#00ff88';
+      document.getElementById('btnWallet').style.color = '#00ff88';
+      coach('Wallet connected',phantomWallet.slice(0,8)+'...');
+      chips += 2000;
+      updateUI();
+    } catch(e) {
+      coach('Wallet rejected','Connection cancelled');
+    }
+  }
+  
   async function finish(){
     btnsDisable();
     document.getElementById('dealerVal').innerText = hv(dealer);
@@ -1111,7 +1135,7 @@
   function adjBet(d){ if(!playing){ bet=Math.max(10,Math.min(5000,bet+d)); updateUI(); }}
   function btnsDisable(){ document.querySelectorAll('.action-btn').forEach(b=>b.disabled=true); }
   function btnsEnable(){ document.querySelectorAll('.action-btn').forEach(b=>b.disabled=false); }
-  function updBtns(){ document.getElementById('btnDouble').disabled=player.length>2||chips<bet; document.getElementById('btnSplit').disabled=player.length!==2||player[0].r!==player[1].r||chips<bet; }
+  function updBtns(){ document.getElementById('btnDouble').disabled=player.length>2||chips<bet; document.getElementById('btnSplit').disabled=player.length!==2||player[0].r!==player[1].r||chips<bet; document.getElementById('btnSurrender').disabled=player.length!==2; }
   
   function updateUI(){
     document.getElementById('chips').innerText = mode==='tourney' ? (tournament.players.find(p=>p.name==='You')?.chip||0) : chips;
