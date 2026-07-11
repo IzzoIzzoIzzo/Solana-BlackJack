@@ -404,7 +404,7 @@ function triggerTonyCollection() {
   SState.set('tonyAnger', 0);
   SState.set('citiesSinceLoan', 0);
 
-  title.textContent = ft.name || 'Fat Tony';
+  title.textContent = 'GAME OVER';
   sub.textContent = '"' + threatLine + '"';
   body.innerHTML = `
     <div style="display:flex;gap:1rem;align-items:flex-start;margin-bottom:1rem">
@@ -429,6 +429,17 @@ function triggerTonyCollection() {
   overlay.classList.add('show');
   if (typeof renderBankroll !== 'undefined') renderBankroll();
   updateTonyHud();
+
+  // Skipping Fat Tony 3 cities in a row = automatic loss. End the run.
+  SState.set('gameOver', true);
+  const _goBtn = document.createElement('button');
+  _goBtn.textContent = 'START OVER';
+  _goBtn.style.cssText = 'width:100%;margin-top:0.8rem;padding:0.75rem;font-family:Cinzel,serif;letter-spacing:0.12em;text-transform:uppercase;background:linear-gradient(135deg,#e03040,#7a1420);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.72rem;font-weight:700';
+  _goBtn.onclick = () => {
+    try { Object.keys(localStorage).filter(k => k.indexOf('shaddai_royale') === 0).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    location.reload();
+  };
+  if (body) body.appendChild(_goBtn);
 }
 
 function updateTonyHud() {
