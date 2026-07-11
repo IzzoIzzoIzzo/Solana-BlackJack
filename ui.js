@@ -239,7 +239,7 @@ const State = (() => {
     players: 1,
     storyProgress: [false, false, false, false, false], // beaten cities
     stats: { wins: 0, losses: 0, bjs: 0, pushes: 0, streak: 0, bestStreak: 0 },
-    settings: { decks: 6, dealerHitsSoft17: true, surrender: true, sound: true, feltColor: '#0b2216' },
+    settings: { decks: 6, dealerHitsSoft17: true, surrender: true, sound: true, feltColor: '#0b2216', dialogPosition: 'bottom-center', dialogOff: false },
   };
 
   let _state = JSON.parse(JSON.stringify(DEFAULTS));
@@ -442,8 +442,20 @@ function initMode() {
       Audio.chip();
       State.set('mode', m);
       if (m === 'story') {
-        Router.go('screen-story');
-        initStory();
+        // P0 FIX: Route story mode to the new come-up flow via StoryMode
+        // story-mode.js patches this click handler on DOMContentLoaded+50ms,
+        // but we also provide a direct fallback here so it works immediately
+        // if StoryMode is already available.
+        if (typeof window.StoryMode !== 'undefined') {
+          if (!window.StoryMode.SState.get('introSeen')) {
+            window.StoryMode.showIntro();
+          } else {
+            window.StoryMode.showUnderground();
+          }
+        } else {
+          // StoryMode not yet loaded (race condition): go to underground screen
+          Router.go('screen-underground');
+        }
       } else {
         Router.go('screen-agent');
         initAgentSelect();
@@ -624,11 +636,16 @@ function initStory() {
 let G = null; // game round state
 
 function initTable() {
+  // P1 FIX: Reset dizziness at the start of every match
+  if (typeof window.StoryMode !== 'undefined' && typeof window.StoryMode.SState !== 'undefined') {
+    window.StoryMode.SState.set('drinksDizzy', 0);
+  }
+
   G = {
     shoe: E.newShoe(State.getNested('settings.decks')),
     round: null,
     playing: false,
-    hintOn: false,
+    hintOn: false,  // OFF by default
     sideBets: { perfectPairs: 0, twentyOnePlus3: 0 },
   };
 
@@ -683,6 +700,23 @@ function initTable() {
   bindTableActions();
   setHint('Place your bet to begin.');
   resetActionBar(false);
+
+  // P1 FIX: Ensure hint button starts in OFF state visually
+  const hintBtn = document.getElementById('btn-hint');
+  if (hintBtn) {
+    hintBtn.classList.remove('on');
+    hintBtn.title = 'Hint OFF — click to see perfect-strategy move';
+  }
+
+  // P1 FIX: Wire drink-water button (defined in story-mode.js, safe via StoryMode export)
+  const waterBtnInit = document.getElementById('btn-drink-water');
+  if (waterBtnInit) {
+    waterBtnInit.onclick = () => {
+      if (typeof window.StoryMode !== 'undefined' && typeof window.StoryMode.drinkWater === 'function') {
+        window.StoryMode.drinkWater();
+      }
+    };
+  }
 }
 
 function renderBankroll() {
@@ -813,7 +847,21 @@ function toggleSideBet(type) {
 function toggleHint() {
   G.hintOn = !G.hintOn;
   const btn = document.getElementById('btn-hint');
-  if (btn) btn.classList.toggle('on', G.hintOn);
+  if (btn) {
+    btn.classList.toggle('on', G.hintOn);
+    btn.title = G.hintOn
+      ? 'Hint ON — perfect strategy recommendation for current hand'
+      : 'Hint OFF — click to see perfect-strategy move';
+  }
+  // P1 FIX: When turning hint OFF, restore the neutral hint text and DO NOT linger
+  if (!G.hintOn) {
+    if (G.playing) {
+      setHint('Hint <strong>OFF</strong> — click Hint to enable.');
+    } else {
+      setHint('Place your bet to begin.');
+    }
+    return;
+  }
   updateHint();
 }
 
@@ -823,11 +871,12 @@ function setHint(text) {
 }
 
 function updateHint() {
-  if (!G || !G.round || !G.playing) return;
-  if (!G.hintOn) { setHint('Hint mode <strong>OFF</strong>'); return; }
+  // Only show hint content when hintOn AND we're mid-hand
+  if (!G || !G.playing) return;
+  if (!G.hintOn) return;
 
-  const playerHand = G.round.seats?.[0]?.hand || G.playerHand || [];
-  const dealerUp = G.round.dealerHand?.[0] || G.dealerHand?.[0];
+  const playerHand = G.playerHand || [];
+  const dealerUp = G.dealerHand?.[1]; // face-up card is index 1
   if (!playerHand.length || !dealerUp) return;
 
   const action = E.basicStrategy(playerHand, dealerUp.rank, State.get('settings'));
@@ -835,7 +884,7 @@ function updateHint() {
   const agentId = State.get('agentId');
   const quips = AGENT_QUIPS[agentId] || {};
   const label = labels[action] || action;
-  setHint(`<strong>${label}</strong> — ${quips.deal || 'Basic strategy recommends this move.'}`);
+  setHint(`<strong>${label}</strong> — ${quips.deal || 'Basic strategy recommends this move.'} <span style="font-size:0.65em;opacity:0.5">(Hint)</span>`);
 }
 
 // ── Game flow ────────────────────────────────────────────────
@@ -1422,6 +1471,18 @@ function initSettingsModal(body) {
   const s = State.get('settings');
   const FELT_COLORS = ['#0b2216','#162240','#1a1a38','#2a1414','#14241a','#0a1a2a'];
 
+  // P1 FIX: dialog placement from settings
+  const dialogPos = State.getNested('settings.dialogPosition') || 'bottom-center';
+  const dialogOff = State.getNested('settings.dialogOff') || false;
+
+  const DIALOG_POSITIONS = [
+    { val: 'top-left',      lbl: '↖ TL' },
+    { val: 'top-right',     lbl: '↗ TR' },
+    { val: 'bottom-left',   lbl: '↙ BL' },
+    { val: 'bottom-right',  lbl: '↘ BR' },
+    { val: 'bottom-center', lbl: '↓ Center' },
+  ];
+
   body.innerHTML = `
     <div class="settings-row">
       <div>
@@ -1467,6 +1528,16 @@ function initSettingsModal(body) {
       <div class="felt-color-row">
         ${FELT_COLORS.map(c => `<div class="felt-swatch${s.feltColor===c?' active':''}" style="background:${c}" onclick="setFeltColor('${c}',this)"></div>`).join('')}
       </div>
+    </div>
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:0.5rem">
+      <div>
+        <div class="settings-row-label">Dialog Bubble Corner</div>
+        <div class="settings-row-sub">Where rival speech appears at the table</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:0.35rem">
+        ${DIALOG_POSITIONS.map(p => `<button class="seg-btn${dialogPos===p.val&&!dialogOff?' active':''}" onclick="setDialogPosition('${p.val}',this)">${p.lbl}</button>`).join('')}
+        <button class="seg-btn${dialogOff?' active':''}" onclick="setDialogOff(this)" style="color:${dialogOff?'var(--red)':''}">✕ Off</button>
+      </div>
     </div>`;
 }
 
@@ -1493,6 +1564,25 @@ window.setFeltColor = function(color, el) {
   el.classList.add('active');
   const felt = document.querySelector('.table-felt');
   if (felt) felt.style.background = `radial-gradient(ellipse at 50% 30%, ${color} 0%, ${color}99 35%, ${hexDarken(color, 0.4)} 70%, #010605 100%)`;
+};
+
+window.setDialogPosition = function(pos, btn) {
+  State.setNested('settings.dialogPosition', pos);
+  State.setNested('settings.dialogOff', false);
+  // Apply to story-dialog-bubble immediately
+  if (typeof window.applyDialogPosition === 'function') window.applyDialogPosition(pos, false);
+  const group = btn.parentElement;
+  group.querySelectorAll('.seg-btn').forEach(b => { b.classList.remove('active'); b.style.color = ''; });
+  btn.classList.add('active');
+};
+
+window.setDialogOff = function(btn) {
+  State.setNested('settings.dialogOff', true);
+  if (typeof window.applyDialogPosition === 'function') window.applyDialogPosition(null, true);
+  const group = btn.parentElement;
+  group.querySelectorAll('.seg-btn').forEach(b => { b.classList.remove('active'); b.style.color = ''; });
+  btn.classList.add('active');
+  btn.style.color = 'var(--red)';
 };
 
 window.addChips = addChips;

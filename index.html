@@ -263,6 +263,7 @@
           <div class="phone-app-tabs">
             <button class="phone-tab active" data-tab="contacts" onclick="switchPhoneTab('contacts',this)">Contacts</button>
             <button class="phone-tab" data-tab="messages" onclick="switchPhoneTab('messages',this)">Messages</button>
+            <button class="phone-tab" data-tab="circuit" onclick="switchPhoneTab('circuit',this)">Circuit</button>
             <button class="phone-tab" data-tab="bank" onclick="switchPhoneTab('bank',this)">Bank</button>
           </div>
           <div class="phone-content" id="phone-content"></div>
@@ -328,8 +329,9 @@
        DRINKS BAR (table overlay button strip)
        ══════════════════════════════════════════════════════ -->
   <div id="drinks-bar" class="drinks-bar" style="display:none">
-    <span class="drinks-label">Buy a Round</span>
-    <button class="drinks-btn" id="btn-buy-drink">🥃 $50</button>
+    <span class="drinks-label">Bar</span>
+    <button class="drinks-btn" id="btn-buy-drink" title="Buy a drink — raises dizzy meter">🥃 $50</button>
+    <button class="drinks-btn water-btn" id="btn-drink-water" title="Drink water — reduces dizziness">💧</button>
     <div class="dizzy-meter" id="dizzy-meter">
       <div class="dizzy-fill" id="dizzy-fill"></div>
     </div>

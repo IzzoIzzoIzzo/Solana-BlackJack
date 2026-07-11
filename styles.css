@@ -3021,6 +3021,21 @@ body::after {
 }
 .drinks-btn:hover { background: rgba(201,168,76,0.12); }
 
+/* P1 — Drink Water button */
+.drinks-btn.water-btn {
+  color: var(--cyan);
+  border-color: rgba(0,229,255,0.25);
+  background: rgba(0,229,255,0.04);
+  font-size: 0.75rem;
+  padding: 0.2rem 0.45rem;
+}
+.drinks-btn.water-btn:hover { background: rgba(0,229,255,0.1); border-color: rgba(0,229,255,0.4); }
+
+/* P2 — Phone circuit city rows */
+.phone-circuit-city-row { transition: background 0.2s; border-radius: 2px; }
+.phone-circuit-city-row:not(.locked):hover { background: rgba(201,168,76,0.05); }
+.phone-circuit-city-row.locked { opacity: 0.45; cursor: default; }
+
 .dizzy-meter {
   width: 40px; height: 4px;
   background: rgba(255,255,255,0.06);

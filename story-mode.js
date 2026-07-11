@@ -391,8 +391,23 @@ function renderCompanionBtn() {
   if (lbl) lbl.textContent = comp ? comp.name + ' (+' + comp.loreBonus + ' LORE)' : 'Bring Someone';
 }
 
+// P2: Boss/Agent mapping for underground venues and cities
+// Underground venue bosses (each venue has a boss agent seated prominently)
+const VENUE_BOSS_MAP = {
+  default: { agentId: 'SHADDAI', name: 'SHADDAI', title: 'House Operator', taunt: 'Welcome to the bottom rung.' },
+};
+// City boss map (used in enterCity and table setup)
+const CITY_BOSS_MAP = {
+  phoenix:  { agentId: 'NEXUS',   name: 'NEXUS',   title: 'The Architect', taunt: "Your math ain't right." },
+  vegas:    { agentId: 'ZEROX',   name: 'ZEROX',   title: 'The Vault', taunt: "Money talks. Yours just whispers." },
+  miami:    { agentId: 'ORACLE',  name: 'ORACLE',  title: 'The All-Seeing', taunt: "I knew you were coming." },
+  texas:    { agentId: 'PIKADON', name: 'PIKADON', title: 'Iron House', taunt: "There's no easy out here." },
+  new_york: { agentId: 'VILLAIN', name: 'THE VILLAIN', title: 'End of the Line', taunt: "You made it this far. That ends now." },
+};
+
 function enterVenue(venue) {
   SState.set('currentVenueId', venue.id);
+  SState.set('currentCityId', null);
   SState.set('sessionLore', 0);
 
   // Apply companion lore bonus for the session
@@ -403,22 +418,77 @@ function enterVenue(venue) {
     earnLore(comp.loreBonus, comp.name);
   }
 
+  // P2: Determine boss for this venue (from STORY data or fallback)
+  const boss = (venue.boss) ? venue.boss : (VENUE_BOSS_MAP[venue.id] || VENUE_BOSS_MAP.default);
+
   // Set up table for this venue
   if (typeof State !== 'undefined') {
     State.set('mode', 'story');
     State.set('bet', venue.buyIn || 100);
     State.set('city', 'Vegas'); // underground uses generic table
+    State.set('agentId', boss.agentId || 'SHADDAI');
+    State.set('players', Math.min(4, 3 + Math.floor(Math.random() * 2))); // 3-4 players for underground
   }
 
   // Show drinks bar on table
   _currentVenue = venue;
   renderDrinksBar(true);
+
+  // P2: Show companion portrait at table if one is selected
+  renderCompanionAtTable();
+
   Router.go('screen-table');
   if (typeof initTable !== 'undefined') initTable();
+
+  // Show boss arrival dialog after table loads
+  if (boss.taunt) {
+    setTimeout(() => showDialogBubble(boss.name, boss.agentId, boss.taunt), 900);
+  }
 }
 
 let _currentVenue = null;
 let _currentCity = null;
+
+// P2: Show companion portrait at the game table (small badge in corner)
+function renderCompanionAtTable() {
+  const compId = SState.get('selectedCompanionId');
+  let el = document.getElementById('companion-table-portrait');
+
+  if (!compId) {
+    if (el) el.style.display = 'none';
+    return;
+  }
+
+  const comp = getCompanion(compId);
+  if (!comp) return;
+
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'companion-table-portrait';
+    el.style.cssText = `
+      position:fixed;bottom:9.5rem;left:0.7rem;z-index:600;
+      display:flex;flex-direction:column;align-items:center;gap:0.2rem;
+      pointer-events:none;
+    `;
+    document.body.appendChild(el);
+  }
+
+  const knownCompanions = ['jade','nova','soleil','reign','cassidy'];
+  const isKnown = knownCompanions.includes((comp.id || '').toLowerCase());
+  const imgSrc = isKnown ? `assets/companions/${comp.id.toLowerCase()}.png` : `assets/companions/${comp.id}.png`;
+  const initials = (comp.name || '?')[0].toUpperCase();
+
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <div style="width:2.8rem;height:3.2rem;border-radius:4px;overflow:hidden;border:1px solid rgba(201,168,76,0.35);box-shadow:0 0 12px rgba(201,168,76,0.2);background:#0a0a14">
+      <img src="${imgSrc}" alt="${comp.name}"
+        style="width:100%;height:100%;object-fit:cover;object-position:top;display:block"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:1rem;color:var(--gold)">${initials}</span>
+    </div>
+    <div style="font-family:'Cinzel',serif;font-size:0.38rem;letter-spacing:0.12em;color:var(--gold-dim);text-transform:uppercase;text-align:center;max-width:2.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${comp.name}</div>
+  `;
+}
 
 // ══════════════════════════════════════════════════
 // SCREEN: CIRCUIT MAP
@@ -492,18 +562,41 @@ function circuitCityGradient(i) {
 
 function enterCity(city) {
   _currentCity = city;
+  _currentVenue = null;
   SState.set('currentCityId', city.id);
+  SState.set('currentVenueId', null);
+
+  // P2: Resolve boss for this city
+  const boss = CITY_BOSS_MAP[city.id] || { agentId: city.rival?.agent || 'SHADDAI', name: city.rival?.name || 'SHADDAI', title: city.rival?.title || 'Dealer' };
+
   showCutscene('arrival', city, () => {
     // Set up table for circuit
     if (typeof State !== 'undefined') {
       State.set('mode', 'story');
       State.set('bet', city.buyIn || 500);
-      State.set('city', city.id === 'new_york' ? 'NewYork' : city.id.charAt(0).toUpperCase() + city.id.slice(1));
-      State.set('agentId', city.rival?.agent || 'SHADDAI');
+      const cityKey = city.id === 'new_york' ? 'NewYork' : city.id.charAt(0).toUpperCase() + city.id.slice(1);
+      State.set('city', cityKey);
+      // P2: Boss is the dealer/agent at the table
+      State.set('agentId', boss.agentId);
+      // P2: Seat up to 6 agents at the circuit table
+      State.set('players', Math.min(6, 4 + Math.floor(Math.random() * 3)));
     }
+
     renderDrinksBar(true);
+    renderCompanionAtTable();
     Router.go('screen-table');
     if (typeof initTable !== 'undefined') initTable();
+
+    // P2: Villain gets special menacing entrance for New York
+    if (city.id === 'new_york' || boss.agentId === 'VILLAIN') {
+      setTimeout(() => {
+        showDialogBubble('THE VILLAIN', 'VILLAIN', "So you made it. Good. I'd hate for this to be too easy.");
+      }, 1200);
+    } else if (boss.taunt || city.rival?.taunt) {
+      setTimeout(() => {
+        showDialogBubble(boss.name, boss.agentId, boss.taunt || city.rival?.taunt || '...');
+      }, 900);
+    }
   });
 }
 
@@ -621,17 +714,35 @@ window.switchPhoneTab = function(tab, btn) {
   renderPhoneContent(tab);
 };
 
+// P2: Companion avatar helper — image with initial fallback
+function companionAvatarHTML(id, name, size) {
+  const s = size || '2rem';
+  const initials = (name || id || '?')[0].toUpperCase();
+  // Check if this is one of the known companion IDs for assets/companions/
+  const knownCompanions = ['jade','nova','soleil','reign','cassidy'];
+  const isComp = knownCompanions.includes((id || '').toLowerCase());
+  const imgSrc = isComp ? `assets/companions/${id.toLowerCase()}.png` : `assets/agents/${id}.png`;
+  return `<div class="phone-contact-avatar" style="position:relative;overflow:hidden;width:${s};height:${s}">
+    <img src="${imgSrc}" alt="${initials}"
+      style="width:100%;height:100%;object-fit:cover;object-position:top;border-radius:50%;display:block"
+      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+    <span style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:0.7rem;color:var(--gold)">${initials}</span>
+  </div>`;
+}
+
 function renderPhoneContent(tab) {
   const content = document.getElementById('phone-content');
   if (!content) return;
 
   if (tab === 'contacts') {
     const contacts = S.phone.contacts || [];
+    // Also include companions as contacts
+    const roster = S.companions.roster || [];
     content.innerHTML = `
       <div class="phone-section-title">Contacts</div>
       ${contacts.map(c => `
         <div class="phone-contact" onclick="openPhoneChat('${c.id}')">
-          <div class="phone-contact-avatar">${c.name[0]}</div>
+          ${companionAvatarHTML(c.id, c.name)}
           <div class="phone-contact-info">
             <div class="phone-contact-name">${c.name}</div>
             <div class="phone-contact-num">${c.number}</div>
@@ -639,7 +750,23 @@ function renderPhoneContent(tab) {
           <div class="phone-contact-note">${c.note || ''}</div>
         </div>
       `).join('')}
+      ${roster.length ? '<div class="phone-section-title" style="margin-top:0.5rem">Companions</div>' : ''}
+      ${roster.map(c => `
+        <div class="phone-contact" onclick="openPhoneChat('${c.id}')">
+          ${companionAvatarHTML(c.id, c.name)}
+          <div class="phone-contact-info">
+            <div class="phone-contact-name">${c.name}</div>
+            <div class="phone-contact-num" style="color:var(--cyan)">+${c.loreBonus} LORE / session</div>
+          </div>
+          <div class="phone-contact-note">${c.aesthetic || ''}</div>
+        </div>
+      `).join('')}
     `;
+
+  } else if (tab === 'circuit') {
+    // P2: Circuit as phone app
+    renderPhoneCircuitApp(content);
+    return;
 
   } else if (tab === 'messages') {
     const threads = SState.get('messageThreads');
@@ -652,13 +779,16 @@ function renderPhoneContent(tab) {
     }
 
     let html = '<div class="phone-section-title">Messages</div>';
+    const rosterAll = S.companions.roster || [];
     for (const [cid, msgs] of Object.entries(threads)) {
       const contact = contacts.find(c => c.id === cid);
-      const cname = contact ? contact.name : cid;
+      const comp = rosterAll.find(c => c.id === cid);
+      const agentTaunt = _AGENT_TAUNTS.find(t => t.agentId === cid);
+      const cname = contact ? contact.name : (comp ? comp.name : (agentTaunt ? agentTaunt.name : cid));
       const last = msgs[msgs.length - 1];
       html += `
         <div class="phone-thread-row" onclick="openPhoneChat('${cid}')">
-          <div class="phone-contact-avatar">${cname[0]}</div>
+          ${companionAvatarHTML(cid, cname)}
           <div class="phone-thread-info">
             <div class="phone-contact-name">${cname}</div>
             <div class="phone-thread-preview">${last?.text || ''}</div>
@@ -705,7 +835,10 @@ function renderPhoneContent(tab) {
 window.openPhoneChat = function(contactId) {
   const contacts = S.phone.contacts || [];
   const contact = contacts.find(c => c.id === contactId);
-  const cname = contact ? contact.name : contactId;
+  const roster = S.companions.roster || [];
+  const compObj = roster.find(c => c.id === contactId);
+  const agentTauntObj = _AGENT_TAUNTS.find(t => t.agentId === contactId);
+  const cname = contact ? contact.name : (compObj ? compObj.name : (agentTauntObj ? agentTauntObj.name : contactId));
   const threads = SState.get('messageThreads');
   const msgs = threads[contactId] || [];
 
@@ -727,10 +860,14 @@ window.openPhoneChat = function(contactId) {
   const comp = getCompanion(contactId);
   const presets = comp ? (S.companions.presetTexts || []) : [];
 
+  // P2: Avatar in chat header
+  const avatarHtml = companionAvatarHTML(contactId, cname, '1.8rem');
+
   const thread = (SState.get('messageThreads')[contactId] || []);
   content.innerHTML = `
-    <div class="phone-chat-header">
+    <div class="phone-chat-header" style="gap:0.5rem">
       <button class="phone-chat-back" onclick="switchPhoneTab('messages')">← Back</button>
+      ${avatarHtml}
       <span class="phone-chat-name">${cname}</span>
     </div>
     <div class="phone-chat-messages" id="phone-chat-msgs">
@@ -777,6 +914,114 @@ window.sendPresetText = function(contactId, presetIdx) {
   window.openPhoneChat(contactId);
 };
 
+// P2: Circuit app inside the phone
+function renderPhoneCircuitApp(content) {
+  const cities = S.cities || [];
+  const beaten = SState.get('beatCities') || [];
+  const lore = SState.get('lore');
+  const circuitUnlocked = SState.get('circuitUnlocked');
+
+  if (!circuitUnlocked) {
+    content.innerHTML = `
+      <div style="padding:1.5rem 0.8rem;text-align:center">
+        <div style="font-size:1.5rem;margin-bottom:0.6rem">🔒</div>
+        <div style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.15em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:0.4rem">The Circuit</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:0.75rem;color:rgba(245,240,232,0.3)">Build your lore in the underground.<br>The invitation will come.</div>
+      </div>`;
+    return;
+  }
+
+  const cityBossMap = {
+    phoenix:  { agentId: 'NEXUS',   bossName: 'NEXUS',   title: 'The Architect' },
+    vegas:    { agentId: 'ZEROX',   bossName: 'ZEROX',   title: 'The Wealth Engine' },
+    miami:    { agentId: 'ORACLE',  bossName: 'ORACLE',  title: 'The All-Seeing' },
+    texas:    { agentId: 'PIKADON', bossName: 'PIKADON', title: 'The Iron Guard' },
+    new_york: { agentId: 'VILLAIN', bossName: 'THE VILLAIN', title: 'End of the Line' },
+  };
+
+  content.innerHTML = `
+    <div class="phone-section-title" style="font-size:0.5rem;letter-spacing:0.25em">Grand Tour — ${beaten.length}/5 Cleared</div>
+    <div style="padding:0.3rem 0.2rem">
+      ${cities.map((city, i) => {
+        const isBeat = beaten.includes(city.id);
+        const isNext = !isBeat && (i === 0 || beaten.includes(cities[i-1]?.id));
+        const isLocked = !isBeat && !isNext;
+        const boss = cityBossMap[city.id] || { agentId: 'SHADDAI', bossName: 'SHADDAI', title: 'Dealer' };
+        const stateLabel = isBeat ? '✓ CLEARED' : isNext ? '▶ PLAY' : '🔒 LOCKED';
+        const stateColor = isBeat ? 'var(--cyan)' : isNext ? 'var(--gold)' : 'rgba(245,240,232,0.2)';
+        return `
+          <div class="phone-circuit-city-row ${isLocked ? 'locked' : ''}" onclick="${!isLocked ? `window.phoneCircuitEnter('${city.id}')` : ''}">
+            <div style="display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.4rem;border-bottom:1px solid rgba(201,168,76,0.06);cursor:${isLocked?'default':'pointer'}">
+              <div style="width:1.8rem;height:1.8rem;border-radius:50%;overflow:hidden;border:1px solid rgba(201,168,76,0.2);flex-shrink:0">
+                <img src="assets/agents/${boss.agentId}.png" alt="${boss.bossName}"
+                  style="width:100%;height:100%;object-fit:cover;object-position:top"
+                  onerror="this.style.display='none'">
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-family:'Cinzel',serif;font-size:0.58rem;letter-spacing:0.06em;color:${isLocked ? 'rgba(245,240,232,0.25)' : 'var(--white)'};text-transform:uppercase">${city.name}</div>
+                <div style="font-family:'Share Tech Mono',monospace;font-size:0.48rem;color:rgba(245,240,232,0.3);margin-top:1px">Buy-in: $${smFmt(city.buyIn || 0)} · Pot: $${smFmt(city.chipTarget || 0)}</div>
+                <div style="font-family:'Cormorant Garamond',serif;font-style:italic;font-size:0.55rem;color:rgba(245,240,232,0.25);margin-top:1px">Boss: ${boss.bossName} — ${boss.title}</div>
+              </div>
+              <div style="font-family:'Cinzel',serif;font-size:0.42rem;letter-spacing:0.08em;color:${stateColor};text-transform:uppercase;flex-shrink:0">${stateLabel}</div>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+window.phoneCircuitEnter = function(cityId) {
+  // Close phone and enter city from circuit
+  Router.go(_phoneReturnScreen);
+  if (_phoneReturnScreen === 'screen-circuit') {
+    setTimeout(() => {
+      const city = getCity(cityId);
+      if (city) enterCity(city);
+    }, 100);
+  } else {
+    showCircuit();
+    setTimeout(() => {
+      const city = getCity(cityId);
+      if (city) enterCity(city);
+    }, 200);
+  }
+};
+
+// P2: Random agent trash-talk taunts between matches
+const _AGENT_TAUNTS = [
+  { agentId: 'NEXUS',   name: 'NEXUS',   text: "I\'ll be waiting for you in Vegas 😏" },
+  { agentId: 'ZEROX',   name: 'ZEROX',   text: "Your stack ain\'t ready for me." },
+  { agentId: 'ORACLE',  name: 'ORACLE',  text: "I already know how this ends for you." },
+  { agentId: 'PIKADON', name: 'PIKADON', text: "Security at my table doesn\'t play nice." },
+  { agentId: 'TURTLE',  name: 'TURTLE',  text: "You really think you can run with us? 😂" },
+  { agentId: 'QUILL',   name: 'QUILL',   text: "The story of your loss will be legendary." },
+  { agentId: 'VILLAIN', name: 'The Villain', text: "I don\'t lose. Ever. See you at the top." },
+];
+
+let _tauntTimer = null;
+function scheduleTaunt() {
+  clearTimeout(_tauntTimer);
+  if (typeof State === 'undefined' || State.get('mode') !== 'story') return;
+  // Fire a taunt 20-45s after each round (random)
+  const delay = 20000 + Math.random() * 25000;
+  _tauntTimer = setTimeout(() => {
+    const taunt = pick(_AGENT_TAUNTS);
+    if (!taunt) return;
+    // Add to message threads
+    const threads = SState.get('messageThreads');
+    if (!threads[taunt.agentId]) threads[taunt.agentId] = [];
+    threads[taunt.agentId].push({ from: taunt.name, text: taunt.text, ts: Date.now() });
+    SState.set('messageThreads', threads);
+    // Show phone notification badge
+    const notif = document.getElementById('phone-notif');
+    if (notif) {
+      const current = parseInt(notif.textContent || '0') || 0;
+      notif.textContent = String(current + 1);
+      notif.style.display = 'inline-block';
+    }
+    showLoreToast('📱 New message from ' + taunt.name);
+  }, delay);
+}
+
 // ══════════════════════════════════════════════════
 // SCREEN: COMPANION PICKER
 // ══════════════════════════════════════════════════
@@ -807,9 +1052,20 @@ function renderCompanionGrid() {
   roster.forEach(comp => {
     const card = document.createElement('div');
     card.className = 'companion-card' + (selected === comp.id ? ' selected' : '');
+    // P2: Use companion portrait image with initial fallback
+    const knownCompanions = ['jade','nova','soleil','reign','cassidy'];
+    const isKnown = knownCompanions.includes((comp.id || '').toLowerCase());
+    const imgSrc = isKnown ? `assets/companions/${comp.id.toLowerCase()}.png` : `assets/companions/${comp.id}.png`;
+    const initials = (comp.name || '?')[0].toUpperCase();
+
     card.innerHTML = `
       <div class="companion-card-inner">
-        <div class="companion-avatar">${comp.name[0]}</div>
+        <div class="companion-avatar" style="padding:0;overflow:hidden;background:linear-gradient(135deg,rgba(40,20,10,0.8),rgba(10,5,20,0.8))">
+          <img src="${imgSrc}" alt="${initials}"
+            style="width:100%;height:100%;object-fit:cover;object-position:top"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:1.2rem;color:var(--gold)">${initials}</span>
+        </div>
         <div class="companion-info">
           <div class="companion-name">${comp.name}</div>
           <div class="companion-aesthetic">${comp.aesthetic}</div>
@@ -853,7 +1109,13 @@ function renderDrinksBar(show) {
   if (fillEl) fillEl.style.width = (dizzy / 5 * 100) + '%';
   if (labelEl) labelEl.textContent = labels[Math.min(dizzy, 5)];
 
-  document.getElementById('btn-buy-drink').onclick = buyDrink;
+  const buyBtn = document.getElementById('btn-buy-drink');
+  if (buyBtn) buyBtn.onclick = buyDrink;
+
+  // P1 FIX: Wire drink-water button
+  const waterBtn = document.getElementById('btn-drink-water');
+  if (waterBtn) waterBtn.onclick = drinkWater;
+
   applyDizzyEffect(dizzy);
 }
 
@@ -877,6 +1139,21 @@ function buyDrink() {
   // Start decay timer
   clearTimeout(_dizzyDecayTimer);
   _dizzyDecayTimer = setTimeout(soberUp, 45000); // 45s per drink
+}
+
+// P1 NEW: Drink Water — sobers up one level immediately, faster timer
+function drinkWater() {
+  const dizzy = SState.get('drinksDizzy');
+  if (dizzy <= 0) {
+    showLoreToast('Already clear-headed 💧');
+    return;
+  }
+  const newDizzy = Math.max(0, dizzy - 1);
+  SState.set('drinksDizzy', newDizzy);
+  renderDrinksBar(true);
+  if (typeof setHint !== 'undefined') setHint('Drank water. Clearing up…');
+  clearTimeout(_dizzyDecayTimer);
+  if (newDizzy > 0) _dizzyDecayTimer = setTimeout(soberUp, 25000);
 }
 
 function soberUp() {
@@ -906,9 +1183,40 @@ function applyDizzyEffect(dizzy) {
 
 // ══════════════════════════════════════════════════
 // DIALOG BUBBLE (rival speech on table)
+// P1 FIX: Dialog placement + OFF setting
 // ══════════════════════════════════════════════════
 
 let _dialogHideTimer = null;
+
+// Apply dialog bubble positioning based on settings
+// Called from ui.js window.applyDialogPosition and internally
+function applyDialogPosition(pos, isOff) {
+  const bubble = document.getElementById('story-dialog-bubble');
+  if (!bubble) return;
+  if (isOff) { bubble.dataset.bubbleOff = 'true'; return; }
+  bubble.dataset.bubbleOff = 'false';
+  // Reset all positional insets
+  bubble.style.top = '';
+  bubble.style.bottom = '';
+  bubble.style.left = '';
+  bubble.style.right = '';
+  bubble.style.transform = '';
+
+  const p = pos || 'bottom-center';
+  if (p === 'top-left')      { bubble.style.top = '4.5rem'; bubble.style.left = '0.8rem'; }
+  else if (p === 'top-right'){ bubble.style.top = '4.5rem'; bubble.style.right = '0.8rem'; }
+  else if (p === 'bottom-left') { bubble.style.bottom = '9rem'; bubble.style.left = '0.8rem'; }
+  else if (p === 'bottom-right'){ bubble.style.bottom = '9rem'; bubble.style.right = '0.8rem'; }
+  else {
+    // bottom-center (default)
+    bubble.style.bottom = '9rem';
+    bubble.style.left = '50%';
+    bubble.style.transform = 'translateX(-50%)';
+  }
+}
+
+// Expose to ui.js
+window.applyDialogPosition = applyDialogPosition;
 
 function showDialogBubble(name, agentId, text) {
   const bubble = document.getElementById('story-dialog-bubble');
@@ -918,10 +1226,18 @@ function showDialogBubble(name, agentId, text) {
 
   if (!bubble) return;
 
+  // P1 FIX: Respect dialog-off setting
+  const dialogOff = typeof State !== 'undefined' && State.getNested('settings.dialogOff');
+  if (dialogOff) return;
+
+  // P1 FIX: Apply current position setting before showing
+  const dialogPos = typeof State !== 'undefined' ? (State.getNested('settings.dialogPosition') || 'bottom-center') : 'bottom-center';
+  applyDialogPosition(dialogPos, false);
+
   if (nameEl) nameEl.textContent = name;
   if (textEl) { textEl.textContent = ''; textEl.style.opacity = '0'; }
   if (imgEl) {
-    if (agentId) { imgEl.src = 'assets/agents/' + agentId + '.png'; imgEl.style.display = ''; }
+    if (agentId) { imgEl.src = 'assets/agents/' + agentId + '.png'; imgEl.style.display = ''; imgEl.onerror = () => { imgEl.style.display = 'none'; }; }
     else imgEl.style.display = 'none';
   }
 
@@ -1011,12 +1327,21 @@ function onRoundEnd(outcome, payout, bet) {
   if (Math.random() < 0.12) {
     const cityId = SState.get('currentCityId');
     const city = cityId ? getCity(cityId) : null;
-    const taunt = city?.rival?.taunt || pick(S.dialog.dealerTaunt || ['The house has something to say.']);
-    showDialogBubble(city?.rival?.name || 'Dealer', city?.rival?.agent || '', taunt);
+    const boss = cityId ? (CITY_BOSS_MAP[cityId] || {}) : {};
+    const taunt = city?.rival?.taunt || boss.taunt || pick(S.dialog.dealerTaunt || ['The house has something to say.']);
+    const dealerName = city?.rival?.name || boss.name || 'Dealer';
+    const dealerAgent = city?.rival?.agent || boss.agentId || (typeof State !== 'undefined' ? State.get('agentId') : '');
+    showDialogBubble(dealerName, dealerAgent, taunt);
   }
 
   // Update drinks bar dizzy
   renderDrinksBar(true);
+
+  // P2: Schedule random agent trash-talk between matches
+  scheduleTaunt();
+
+  // P2 / P8: Auto-save on every round end
+  SState.save();
 }
 
 function showDialog(moment) {
@@ -1114,4 +1439,7 @@ window.StoryMode = {
   showPhone,
   earnLore,
   SState,
+  drinkWater,
+  renderCompanionAtTable,
+  applyDialogPosition,
 };
