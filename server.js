@@ -14,7 +14,9 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.static(pathMod.join(__dirname)));
 
 // ── persistence: password saves + leaderboard (JSON files) ──
-const DATA_DIR = pathMod.join(__dirname, 'data');
+// On Render, mount a persistent disk and set DATA_DIR=/var/data so saves +
+// the leaderboard survive redeploys (the default filesystem is ephemeral).
+const DATA_DIR = process.env.DATA_DIR || pathMod.join(__dirname, 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const SAVES_FILE = pathMod.join(DATA_DIR, 'saves.json');
 const LB_FILE = pathMod.join(DATA_DIR, 'leaderboard.json');

@@ -1,0 +1,18 @@
+# SHADDAI ROYALE — Render deploy blueprint.
+# One-click: Render → New → Blueprint → pick this repo.
+# The persistent disk keeps player saves + the leaderboard alive across redeploys.
+services:
+  - type: web
+    name: shaddai-royale
+    runtime: node
+    plan: starter          # free tier sleeps + has no disk; starter keeps saves persistent
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: DATA_DIR
+        value: /var/data    # saves.json + leaderboard.json land on the disk below
+      # PORT is provided by Render automatically; server.js reads process.env.PORT
+    disk:
+      name: royale-data
+      mountPath: /var/data
+      sizeGB: 1
