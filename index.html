@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="styles.css">
   <!-- engine loads first; ui.js runs on DOMContentLoaded -->
   <script src="engine.js" onerror="console.warn('engine.js not found — using fallback engine')"></script>
+  <script src="story.js" onerror="console.warn('story.js not found')"></script>
 </head>
 <body>
 
@@ -127,7 +128,7 @@
 
 
   <!-- ══════════════════════════════════════════════════════
-       SCREEN 5 — STORY MAP
+       SCREEN 5 — STORY MAP (legacy, redirects to new story hub)
        ══════════════════════════════════════════════════════ -->
   <section id="screen-story" class="screen" style="justify-content:flex-start;padding:1rem 0 0;overflow-y:auto">
     <div style="position:relative;z-index:2;text-align:center;margin-bottom:1.2rem;padding:0 1rem">
@@ -135,13 +136,217 @@
       <h2 style="font-family:'Cinzel Decorative',serif;font-size:1.6rem;font-weight:700;background:linear-gradient(135deg,var(--gold-bright),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">The Grand Tour</h2>
       <p style="font-family:'Cormorant Garamond',serif;font-size:0.85rem;font-style:italic;color:rgba(245,240,232,0.4);margin-top:0.3rem">Beat each city to unlock the next venue</p>
     </div>
-
     <div id="story-path" class="story-path"></div>
-
     <div style="position:relative;z-index:2;padding:0 1rem 1.5rem">
       <button id="btn-story-back" class="back-btn" style="justify-content:center">← Back to Modes</button>
     </div>
   </section>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       STORY — INTRO CINEMATIC
+       ══════════════════════════════════════════════════════ -->
+  <section id="screen-story-intro" class="screen">
+    <div class="story-intro-bg" id="story-intro-bg"></div>
+    <div class="story-intro-panel" id="story-intro-panel">
+      <div class="story-intro-beat-label" id="story-intro-beat-label">The Bottom</div>
+      <div class="story-intro-lines" id="story-intro-lines"></div>
+      <button class="story-intro-next" id="btn-story-intro-next">Continue →</button>
+    </div>
+    <div class="story-intro-progress" id="story-intro-progress"></div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       STORY — UNDERGROUND VENUE PICKER
+       ══════════════════════════════════════════════════════ -->
+  <section id="screen-underground" class="screen">
+    <div class="underground-bg"></div>
+    <div class="underground-header">
+      <div class="lore-bar-wrap">
+        <div class="lore-bar-label">
+          <span class="lore-tier-name" id="lore-tier-name">Nobody</span>
+          <span class="lore-pts" id="lore-pts">0 LORE</span>
+        </div>
+        <div class="lore-bar-track">
+          <div class="lore-bar-fill" id="lore-bar-fill"></div>
+          <div class="lore-bar-next-marker" id="lore-next-marker"></div>
+        </div>
+        <div class="lore-tier-blurb" id="lore-tier-blurb">You're just some guy at the table.</div>
+      </div>
+    </div>
+
+    <div class="underground-title-row">
+      <div class="underground-eyebrow">The Come-Up</div>
+      <h2 class="underground-title">Choose Your Night</h2>
+    </div>
+
+    <div class="venue-cards" id="venue-cards"></div>
+
+    <div class="underground-footer">
+      <button class="phone-btn" id="btn-open-phone" title="Phone">
+        <span class="phone-btn-icon">📱</span>
+        <span class="phone-btn-label">Phone</span>
+        <span class="phone-notif" id="phone-notif" style="display:none"></span>
+      </button>
+      <button class="companion-btn" id="btn-pick-companion">
+        <span id="companion-label">Bring Someone</span>
+      </button>
+      <button class="circuit-btn" id="btn-open-circuit" style="display:none">
+        <span>The Circuit →</span>
+      </button>
+    </div>
+    <div style="position:relative;z-index:3;padding:0.5rem 1rem 0">
+      <button class="back-btn" id="btn-underground-back">← Menu</button>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       STORY — CIRCUIT MAP (Def Jam city pins)
+       ══════════════════════════════════════════════════════ -->
+  <section id="screen-circuit" class="screen">
+    <div class="circuit-bg"></div>
+    <div class="circuit-header">
+      <div class="circuit-eyebrow">The Circuit</div>
+      <h2 class="circuit-title">Five Cities. One Throne.</h2>
+      <div class="circuit-lore-pill">
+        <span id="circuit-tier-name">Nobody</span>
+        <span id="circuit-lore-display">0 LORE</span>
+      </div>
+    </div>
+    <div class="circuit-map" id="circuit-map"></div>
+    <div style="position:relative;z-index:3;padding:0.5rem 1rem 0;display:flex;gap:0.8rem;align-items:center">
+      <button class="back-btn" id="btn-circuit-back">← Underground</button>
+      <button class="phone-btn-small" id="btn-circuit-phone" title="Phone">📱</button>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       STORY — CUTSCENE (arrival / victory beats)
+       ══════════════════════════════════════════════════════ -->
+  <section id="screen-cutscene" class="screen">
+    <div class="cutscene-bg" id="cutscene-bg"></div>
+    <div class="cutscene-rival-wrap" id="cutscene-rival-wrap">
+      <img class="cutscene-rival-img" id="cutscene-rival-img" src="" alt="" onerror="this.style.display='none'">
+      <div class="cutscene-rival-name" id="cutscene-rival-name"></div>
+      <div class="cutscene-rival-title" id="cutscene-rival-title"></div>
+    </div>
+    <div class="cutscene-panel">
+      <div class="cutscene-city-label" id="cutscene-city-label"></div>
+      <div class="cutscene-line" id="cutscene-line"></div>
+      <div class="cutscene-dots" id="cutscene-dots"></div>
+      <button class="cutscene-next" id="btn-cutscene-next">Continue</button>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       STORY — PHONE (Sidekick-style)
+       ══════════════════════════════════════════════════════ -->
+  <section id="screen-phone" class="screen">
+    <div class="phone-device">
+      <div class="phone-shell">
+        <!-- Hinge area -->
+        <div class="phone-hinge">
+          <div class="phone-speaker"></div>
+          <div class="phone-camera"></div>
+        </div>
+        <!-- Screen -->
+        <div class="phone-screen">
+          <div class="phone-status-bar">
+            <span class="phone-time" id="phone-time">9:41</span>
+            <span class="phone-carrier">ROYALE</span>
+            <span class="phone-battery">▮▮▮</span>
+          </div>
+          <div class="phone-app-tabs">
+            <button class="phone-tab active" data-tab="contacts" onclick="switchPhoneTab('contacts',this)">Contacts</button>
+            <button class="phone-tab" data-tab="messages" onclick="switchPhoneTab('messages',this)">Messages</button>
+            <button class="phone-tab" data-tab="bank" onclick="switchPhoneTab('bank',this)">Bank</button>
+          </div>
+          <div class="phone-content" id="phone-content"></div>
+        </div>
+        <!-- Keyboard / lower shell -->
+        <div class="phone-keyboard">
+          <div class="phone-dpad">
+            <div class="dpad-up">▲</div>
+            <div class="dpad-row">
+              <div class="dpad-left">◄</div>
+              <div class="dpad-center">OK</div>
+              <div class="dpad-right">►</div>
+            </div>
+            <div class="dpad-down">▼</div>
+          </div>
+          <div class="phone-keys">
+            <div class="phone-key">1</div><div class="phone-key">2</div><div class="phone-key">3</div>
+            <div class="phone-key">4</div><div class="phone-key">5</div><div class="phone-key">6</div>
+            <div class="phone-key">7</div><div class="phone-key">8</div><div class="phone-key">9</div>
+            <div class="phone-key">*</div><div class="phone-key">0</div><div class="phone-key">#</div>
+          </div>
+          <button class="phone-close-btn" id="btn-close-phone">Close</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       STORY — COMPANION PICKER
+       ══════════════════════════════════════════════════════ -->
+  <section id="screen-companion" class="screen">
+    <div class="companion-bg"></div>
+    <div class="companion-header">
+      <div class="companion-eyebrow">Who's Coming With You</div>
+      <h2 class="companion-title">Bring Someone</h2>
+      <p class="companion-sub">They boost your lore. Make it count.</p>
+    </div>
+    <div class="companion-grid" id="companion-grid"></div>
+    <div style="position:relative;z-index:3;padding:0.5rem 1rem 1rem;display:flex;gap:0.8rem">
+      <button class="back-btn" id="btn-companion-back">← Back</button>
+      <button class="btn-gold-primary" style="flex:1;max-width:200px" id="btn-companion-solo">Go Solo</button>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       STORY DIALOG BUBBLE (overlay on table)
+       ══════════════════════════════════════════════════════ -->
+  <div id="story-dialog-bubble" class="story-dialog-bubble" style="display:none">
+    <div class="sdb-rival-wrap">
+      <img class="sdb-rival-img" id="sdb-rival-img" src="" alt="" onerror="this.style.display='none'">
+    </div>
+    <div class="sdb-text-wrap">
+      <div class="sdb-name" id="sdb-name"></div>
+      <div class="sdb-text" id="sdb-text"></div>
+    </div>
+    <button class="sdb-close" onclick="document.getElementById('story-dialog-bubble').style.display='none'">✕</button>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       DRINKS BAR (table overlay button strip)
+       ══════════════════════════════════════════════════════ -->
+  <div id="drinks-bar" class="drinks-bar" style="display:none">
+    <span class="drinks-label">Buy a Round</span>
+    <button class="drinks-btn" id="btn-buy-drink">🥃 $50</button>
+    <div class="dizzy-meter" id="dizzy-meter">
+      <div class="dizzy-fill" id="dizzy-fill"></div>
+    </div>
+    <span class="dizzy-label" id="dizzy-label">Sober</span>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════════════
+       INVITE NOTIFICATION (animated SMS chain)
+       ══════════════════════════════════════════════════════ -->
+  <div id="invite-overlay" class="invite-overlay" style="display:none">
+    <div class="invite-phone-mock">
+      <div class="invite-from">Unknown +1 (???-???-????)</div>
+      <div class="invite-messages" id="invite-messages"></div>
+      <button class="invite-dismiss" id="btn-invite-dismiss">→ I'll Show Up</button>
+    </div>
+  </div>
 
 
   <!-- ══════════════════════════════════════════════════════
@@ -322,5 +527,6 @@
 </div><!-- /app -->
 
 <script src="ui.js"></script>
+<script src="story-mode.js"></script>
 </body>
 </html>

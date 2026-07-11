@@ -304,6 +304,8 @@ const Router = (() => {
 
   return { go };
 })();
+// Expose to story-mode.js
+window.Router = Router;
 
 // ── AGENTS config ───────────────────────────────────────────
 const AGENTS = [
@@ -770,9 +772,16 @@ function bindTableActions() {
     'btn-side-21':    () => toggleSideBet('twentyOnePlus3'),
   };
 
+  // FIX: Clone each button to strip ALL previously stacked event listeners
+  // before adding the fresh handler. This prevents duplicate-listener bugs
+  // where re-entering the table screen would cause Hit (and other actions)
+  // to fire multiple times per click.
   for (const [id, fn] of Object.entries(handlers)) {
     const el = document.getElementById(id);
-    if (el) el.addEventListener('click', fn);
+    if (!el) continue;
+    const fresh = el.cloneNode(true);
+    el.parentNode.replaceChild(fresh, el);
+    fresh.addEventListener('click', fn);
   }
 }
 
@@ -900,6 +909,8 @@ async function onDeal() {
   // Check player BJ
   const playerBJ = E.isBlackjack(G.playerHand);
   if (playerBJ) {
+    // Story dialog: blackjack moment
+    if (typeof window.StoryMode !== 'undefined') window.StoryMode.showDialog('blackjack');
     // Flip dealer hole
     flipHoleCard();
     await wait(350);
@@ -1250,6 +1261,11 @@ async function endRound(outcome, payout, label) {
     }
   }
 
+  // Story mode hooks — fire after hand resolution
+  if (typeof window.StoryMode !== 'undefined') {
+    window.StoryMode.onRoundEnd(outcome, payout, State.get('bet'));
+  }
+
   // Low bankroll warning
   if (State.get('bankroll') < 10) openModal('chips');
 }
@@ -1500,6 +1516,10 @@ function initSettingsScreen() {
     Router.go('screen-table');
   });
 }
+
+// ── Expose globals for story-mode.js ────────────────────────
+window.State = State;
+window.Audio_SR = Audio; // expose Sound as Audio_SR to avoid collision
 
 // ── BOOT ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
