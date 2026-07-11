@@ -6,6 +6,8 @@ const { Server } = require('socket.io');
 const app = express();
 app.use(cors());
 app.use(express.json());
+// serve the game frontend (index.html + any assets) at the root
+app.use(express.static(require('path').join(__dirname)));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } });
